@@ -1,0 +1,31 @@
+# Build outputs
+target/
+*.jar
+*.war
+*.class
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+
+# Maven
+.mvn/wrapper/maven-wrapper.jar
+
+# Docker volumes (we don't want to commit DB data)
+postgres-data/
