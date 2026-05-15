@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: orderflow-postgres
+    ports:
+    - "5432:5432"
+    environment:
+      POSTGRES_USER: orderflow
+      POSTGRES_PASSWORD: orderflow
+      POSTGRES_DB: monolith
+    volumes:
+      - postgres-data:/var/lob/postgresql/data
+    networks:
+      - orderflow
+
+networks:
+  orderflow:
+    name: orderflow
+    driver: bridge
+
+volumes:
+  postgres-data:
+
+
