@@ -1,0 +1,12 @@
+Kafka Internals --
+
+ Kafka is an append-only log — partitions are independent ordered logs
+ Ordering is per-partition, not global — same key always lands on same partition
+ Producers append, consumers read by offset, broker keeps everything until retention expires
+ Consumer groups split partition work — partitions are the unit of parallelism
+ Two groups consuming the same topic don't interfere — each maintains its own offsets
+ Rebalancing happens automatically when consumers join/leave
+ Offsets are stored in __consumer_offsets, an internal Kafka topic — durable and resettable
+ You can replay any time by resetting offsets — the key superpower over traditional queues
+ Consumer lag = LOG-END-OFFSET - CURRENT-OFFSET, the most important metric to monitor
+
