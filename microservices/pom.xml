@@ -58,6 +58,7 @@
     <dependencyManagement>
         <dependencies>
             <!-- Our own common library — every service depends on it -->
+
             <dependency>
                 <groupId>com.orderflow</groupId>
                 <artifactId>common</artifactId>

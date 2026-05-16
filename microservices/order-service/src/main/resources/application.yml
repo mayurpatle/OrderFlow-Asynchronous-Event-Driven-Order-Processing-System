@@ -24,6 +24,15 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
+    # Kafka configuration.
+    # 'localhost:29092' is the EXTERNAL listener we configured in Session 3.
+    # Apps running on your laptop use 29092; apps running inside Docker
+    # would use kafka:9092.
+    kafka:
+      bootstrap-servers: localhost:29092
+
+
+
 logging:
   level:
     com.orderflow: INFO

@@ -50,6 +50,21 @@
             <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
 
+        <!--
+            Spring Kafka. Brings in:
+            - org.apache.kafka:kafka-clients (the actual Kafka client library)
+            - org.springframework.kafka:spring-kafka (Spring's idiomatic wrapper:
+                KafkaTemplate, @KafkaListener, etc.)
+
+            Version is managed by spring-boot-starter-parent. We picked a Spring Boot 3.2.4
+            parent, which uses spring-kafka 3.1.x — compatible with Kafka brokers 2.5+
+            (we're on 3.6, so we're fine).
+        -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
