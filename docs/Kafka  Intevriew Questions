@@ -1,0 +1,9 @@
+-- Walk me through your Kafka producer setup
+
+-- I use acks=all with idempotent producers and infinite retries. That gives me exactly-once producer-to-broker semantics — no message loss, no duplicates from network retries. I key every event by the business entity ID — orderId in this case — so all events for one entity land on the same partition and consumers process them in causal order. I wrap every payload in an envelope with eventId, correlationId, and occurredAt — eventId for consumer-side dedup, correlationId for distributed tracing across services, occurredAt for business-time analytics. The send is async; I never block the calling thread. The producer is fire-and-forget from the HTTP handler's perspective, with the durability guarantee coming from acks=all + idempotence + retries. For absolute guarantees against producer-side crashes, the outbox pattern is the right answer — save the event to the DB in the same transaction as the entity, then a separate process publishes from the outbox.
+
+-- What's the difference between acks=1 and acks=all?
+
+-- acks=1 means the partition leader writes to its log and acknowledges. If the leader crashes before the message replicates, the message is lost. acks=all means the leader waits for all in-sync replicas to also write. The trade-off is latency — acks=all adds a round trip to replicas — for durability. For anything money-related, like orders or payments, acks=all is the only acceptable choice.
+
+
