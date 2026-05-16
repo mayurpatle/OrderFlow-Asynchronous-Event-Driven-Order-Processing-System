@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+      Declares this as a child of our microservices-parent. The <parent> element
+      tells Maven "look for the parent POM in ../pom.xml". relativePath is
+      important — without it, Maven hits the central repository, which doesn't
+      have our local parent.
+    -->
+    <parent>
+        <groupId>com.orderflow</groupId>
+        <artifactId>microservices-parent</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <!--
+      groupId and version are INHERITED from parent — we don't need to repeat them.
+      Only artifactId is required.
+    -->
+    <artifactId>common</artifactId>
+    <name>orderflow-common</name>
+    <description>Shared code: event envelope, topic names, payload DTOs.</description>
+
+    <!--
+      Default packaging is 'jar' so we don't need to declare it. This module
+      produces common-1.0.0.jar which gets installed to your local ~/.m2 repo
+      and can then be depended on by other modules.
+    -->
+
+    <dependencies>
+        <!--
+          We need Jackson because our EventEnvelope will be serialized to JSON
+          for now (we'll switch to Avro in Session 13). 'spring-boot-starter'
+          brings in jackson-databind and Spring's basic infrastructure.
+
+          We deliberately do NOT bring in starter-web here — common shouldn't
+          assume it's running in a web app. It might be used by a CLI tool,
+          a Kafka Streams app, anything.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- For Jackson to handle Java 8+ time types (Instant, LocalDateTime, etc.) -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+</project>
