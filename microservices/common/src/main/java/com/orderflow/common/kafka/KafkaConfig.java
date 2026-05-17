@@ -232,22 +232,41 @@ public class KafkaConfig {
         // 500 is the default; reasonable for our case.
         props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 500);
 
+        /*  IMPORTANT DESERIALIZATION */
 
 
-        // Build the deserializer with the target type (EventEnvelope) explicitly.
-        // This is the CRITICAL line: passing the class as the first arg tells
-        // JsonDeserializer exactly what type to produce. No header guessing,
-        // no string class-name resolution.
-        @SuppressWarnings({"rawtypes", "unchecked"})
-        JsonDeserializer<Object> valueDeserializer = (JsonDeserializer)
-                new JsonDeserializer<>(EventEnvelope.class, kafkaObjectMapper, false)
-                        .trustedPackages("com.orderflow.*", "java.util", "java.lang");
+        // --- Deserialization ---
+        //
+        // Key: just a string (orderId.toString() on the producer side).
+        // Value: our EventEnvelope, JSON-serialized. JsonDeserializer reads
+        //        the JSON and reconstructs the Java object.
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
 
-        return new DefaultKafkaConsumerFactory<>(
-                props,
-                new StringDeserializer(),
-                valueDeserializer
-        );
+        // --- JsonDeserializer settings ---
+        //
+        // TRUSTED_PACKAGES is a security feature. JsonDeserializer can deserialize
+        // into any class on the classpath, which is dangerous if untrusted producers
+        // can specify arbitrary types in headers. We allowlist our own packages.
+        props.put(JsonDeserializer.TRUSTED_PACKAGES, "com.orderflow.*");
+
+        // USE_TYPE_INFO_HEADERS=false: don't rely on Spring's __TypeId__ header
+        // (which the producer would set if matching). We deserialize to a known
+        // type via VALUE_DEFAULT_TYPE.
+        props.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
+
+        // VALUE_DEFAULT_TYPE: when no type info is in headers, deserialize the
+        // JSON into this class. EventEnvelope's payload is parameterized as
+        // a generic Map (raw <T>), so Jackson reads the JSON object into a
+        // Map<String, Object>. Each consumer method then converts to its
+        // specific payload type using ObjectMapper.convertValue.
+        //
+        // This is a tradeoff. With type headers we'd get full type safety. Without
+        // them, we get more flexibility — a consumer can listen on multiple topics
+        // even if their payload types differ.
+        props.put(JsonDeserializer.VALUE_DEFAULT_TYPE, "com.orderflow.common.events.EventEnvelope");
+
+        return new DefaultKafkaConsumerFactory<>(props);
 
 
 
