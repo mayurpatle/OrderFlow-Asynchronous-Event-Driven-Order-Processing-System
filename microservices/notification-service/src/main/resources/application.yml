@@ -1,0 +1,17 @@
+# notification-service runs on port 8085.
+# Each service gets a unique port locally so they can coexist.
+
+server:
+  port: 8085
+
+spring:
+  application:
+    name: notification-service
+
+  kafka:
+    bootstrap-servers: localhost:29092
+
+logging:
+  level:
+    com.orderflow: INFO
+    org.apache.kafka: WARN

@@ -27,7 +27,7 @@ Session 4 — Bootstrap the Order Service & Common Library
 Multi-module Maven setup. The EventEnvelope<T> record (and why it exists). The Topics constants class. Your first standalone Spring Boot service that doesn't yet talk to Kafka. ✅
 
 Session 5 — First Kafka Producer
-Configure KafkaTemplate. Write OrderEventPublisher. Send your first event. Inspect it in Kafka UI. We unpack acks=all, enable.idempotence, partition keys, and why orderId is the right key here.
+Configure KafkaTemplate. Write OrderEventPublisher. Send your first event. Inspect it in Kafka UI. We unpack acks=all, enable.idempotence, partition keys, and why orderId is the right key here. ✅
 
 Session 6 — First Kafka Consumer
 Build the notification-service end-to-end. @KafkaListener. Consumer group ID. Deserialization. Watch the event flow from producer → broker → consumer in real time.

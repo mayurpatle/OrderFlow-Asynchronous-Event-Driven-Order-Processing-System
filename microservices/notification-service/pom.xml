@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.orderflow</groupId>
+        <artifactId>microservices-parent</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>notification-service</artifactId>
+    <name>orderflow-notification-service</name>
+    <description>
+        The notification service: consumes events from Kafka and sends emails/SMS.
+        Pure event consumer — no database, no business state, just side effects.
+    </description>
+
+    <dependencies>
+        <!-- Our common library brings in KafkaConfig, EventEnvelope, Topics -->
+        <dependency>
+            <groupId>com.orderflow</groupId>
+            <artifactId>common</artifactId>
+        </dependency>
+
+        <!--
+          We still need spring-boot-starter-web. Why?
+          The notification-service doesn't have HTTP endpoints today, but:
+            1. It gives us actuator endpoints for health checks
+            2. It runs an embedded Tomcat that keeps the JVM alive
+            3. Without it, Spring Boot might exit immediately after startup
+
+          Alternative: spring-boot-starter (no web) + an ApplicationRunner
+          that blocks forever. But the web starter is simpler and gives us
+          standard /health endpoints.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- Spring Kafka — the consumer-side machinery -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>notification-service</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>
