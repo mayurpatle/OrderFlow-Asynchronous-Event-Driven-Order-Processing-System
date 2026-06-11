@@ -47,7 +47,7 @@ Build the `notification-service` end-to-end. `@KafkaListener`. Consumer group ID
 
 ## Phase 3: The Domain (Sessions 7–11)
 
-### Session 7 — Inventory Service: Two-Path Logic
+### Session 7 — Inventory Service: Two-Path Logic ✅
 
 Producer + consumer in the same service. Reserve stock or fail. This is where "events trigger more events" clicks.
 
