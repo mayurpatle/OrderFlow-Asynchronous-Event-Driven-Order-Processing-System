@@ -55,9 +55,15 @@ Producer + consumer in the same service. Reserve stock or fail. This is where "e
 
 **Known issue:** If the current items are not available (i.e. not reserved), then the notification service should not send the notification email.
 
-### Session 8 — Payment Service & The Saga Begins
+### Session 8 — Payment Service & The Saga Begins ✅
 
 Simulated gateway with a 5% failure rate. Now you have a real failure path to compensate for.
+
+## Till here we  have    not  added the  actual cost  for  the order  and c we are also not added the actual payment gateway intregation we  just  simulatig   
+## future  Enhancements : 
+Add the  Actual Cost  of the order
+Add Real  Payment Gateway
+
 
 ### Session 9 — Saga Compensation: Distributed Transactions Without 2PC
 
