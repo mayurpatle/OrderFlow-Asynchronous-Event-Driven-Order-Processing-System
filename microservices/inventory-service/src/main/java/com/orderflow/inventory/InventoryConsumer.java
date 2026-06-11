@@ -6,12 +6,15 @@ import com.orderflow.common.events.Topics;
 import com.orderflow.common.events.payloads.InventoryReservationFailedPayload;
 import com.orderflow.common.events.payloads.InventoryReservedPayload;
 import com.orderflow.common.events.payloads.OrderCreatedPayload;
+import com.orderflow.common.events.payloads.PaymentFailedPayload;
 import com.orderflow.inventory.Entity.Reservation;
+import com.orderflow.inventory.Entity.ReservationItem;
 import com.orderflow.inventory.Entity.ReservationStatus;
 import com.orderflow.inventory.Entity.StockItem;
+import com.orderflow.inventory.Repositories.ReservationItemRepository;
 import com.orderflow.inventory.Repositories.ReservationRepository;
 import com.orderflow.inventory.Repositories.StockItemRepository;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -50,6 +53,9 @@ public class InventoryConsumer {
 
     private final StockItemRepository stockItemRepository  ;
     private final ReservationRepository reservationRepository  ;
+
+    private final ReservationItemRepository reservedItemRepo;   // ← NEW
+
     private final ObjectMapper objectMapper  ;
     private final KafkaTemplate<String , Object>  kafkaTemplate  ;
 
@@ -73,7 +79,7 @@ public class InventoryConsumer {
 
     )
     @Transactional
-    public void  onOderCreated(EventEnvelope<Map<String,Object>> envelope){
+    public void  onOrderCreated(EventEnvelope<Map<String,Object>> envelope){
         // Convert the Map-shaped payload into our typed OrderCreatedPayload.
         // Jackson's convertValue does the JSON->object conversion using our
         // ObjectMapper's configured modules (incl. JavaTimeModule).
@@ -161,7 +167,25 @@ public class InventoryConsumer {
                 .status(ReservationStatus.ACTIVE)
                 .createdAt(Instant.now())
                 .build();
+
+        // Persist one ReservationItem per ordered SKU.
+// These are what onPaymentFailed will read during saga compensation.
+        for (OrderCreatedPayload.Item item : order.items()) {
+            ReservationItem ri = ReservationItem.builder()
+                    .id(UUID.randomUUID())
+                    .reservationId(reservation.getId())
+                    .sku(item.sku())
+                    .quantity(item.quantity())
+                    .build();
+            reservedItemRepo.save(ri);
+        }
+
+
+
         return reservationRepository.save(reservation);
+
+
+
     }
 
     /**
@@ -227,6 +251,118 @@ public class InventoryConsumer {
         kafkaTemplate.send(Topics.INVENTORY_RESERVATION_FAILED, order.orderId().toString(), envelope);
         log.warn("Failed to reserve inventory for order {} — unavailable SKUs: {}",
                 order.orderId(), unavailableSkus);
+    }
+
+    // Session  9 : Saga Compensation for failed Payments
+
+    /**
+     * Compensation handler — releases reserved stock when a payment fails.
+     *
+     * THIS IS THE SAGA ROLLBACK in action. When payment-service publishes
+     * payment.failed for an order, we look up the matching reservation, mark it
+     * RELEASED, and return the reserved quantities to availableQuantity.
+     *
+     * Idempotency: the reservation's status field IS our idempotency key. If a
+     * duplicate payment.failed arrives (Kafka at-least-once), we'll see status
+     * is already RELEASED and skip silently.
+     *
+     * Missing reservation: if we receive payment.failed but there's no
+     * reservation for that orderId, we log a warning and move on rather than
+     * throwing. Throwing would cause Spring Kafka to retry forever, blocking
+     * the consumer thread. There's nothing meaningful to retry.
+     *
+     * Why we're NOT publishing an "inventory.released" event yet:
+     *   In production we'd typically publish one so that notification-service
+     *   could email the customer, and order-service could transition the order
+     *   to CANCELLED. We'll add this in later sessions — for today the focus
+     *   is on the compensation mechanic itself.
+     */
+    @KafkaListener(
+            topics = Topics.PAYMENT_FAILED,
+            groupId = "inventory-service",
+            containerFactory = "orderflowKafkaListenerFactory"
+    )
+    @Transactional
+    public void onPaymentFailed(EventEnvelope<Map<String, Object>> envelope) {
+        // Convert payload to typed form
+        PaymentFailedPayload failed = objectMapper.convertValue(
+                envelope.payload(), PaymentFailedPayload.class);
+
+        log.info("Processing payment.failed for orderId={} reason={}",
+                failed.orderId(), failed.failureReason());
+
+        // Find the reservation that needs to be compensated
+        var reservationOpt = reservationRepository.findByOrderId(failed.orderId());
+
+        if (reservationOpt.isEmpty()) {
+            // No reservation found. Either we never created one, or it was
+            // already cleaned up by some other path. Either way, nothing to do.
+            // We log and return — DO NOT throw, because throwing would cause
+            // Spring Kafka to redeliver forever and block this consumer.
+            log.warn("No reservation found for order {} — nothing to compensate", failed.orderId());
+            return;
+        }
+
+        Reservation reservation = reservationOpt.get();
+
+        // Idempotency check: if already released, this is a duplicate delivery.
+        // Silently skip.
+        if (reservation.getStatus() != ReservationStatus.ACTIVE) {
+            log.info("Reservation {} for order {} is already {}, skipping (idempotent)",
+                    reservation.getId(), failed.orderId(), reservation.getStatus());
+            return;
+        }
+
+        // ====================================================================
+        // THE COMPENSATION ITSELF
+        // ====================================================================
+
+        // Step 1: Find which items this reservation locked, and how much.
+        //
+        // We don't store the reserved items directly on the Reservation entity
+        // (look at Reservation.java — it just has id, orderId, status, createdAt).
+        // So we need another way to know which SKUs to credit back.
+        //
+        // We have two options:
+        //   (a) Add a reserved_items table linked to Reservation, populated when
+        //       we reserve in onOrderCreated
+        //   (b) Read the original order.created event from Kafka and use its items
+        //
+        // Option (b) requires re-reading Kafka and breaks encapsulation. Option (a)
+        // is the right long-term answer. For Session 9 we'll do option (a) properly —
+        // see ReservationItem entity in the next step.
+        //
+        // For now, this method assumes ReservationItem exists. If you're reading
+        // this from a fresh checkout: see the ReservationItem entity that the
+        // session adds alongside this consumer method.
+
+        var reservedItems = reservedItemRepo.findByReservationId(reservation.getId());
+
+        if (reservedItems.isEmpty()) {
+            log.warn("Reservation {} has no reserved items recorded — cannot restore stock. " +
+                    "Marking as RELEASED anyway.", reservation.getId());
+        }
+
+        // Step 2: Restore stock for each item
+        for (ReservationItem item : reservedItems) {
+            StockItem stock = stockItemRepository.findById(item.getSku())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "StockItem missing for SKU " + item.getSku() +
+                                    " — this should never happen for an existing reservation"));
+
+            stock.setAvailableQuantity(stock.getAvailableQuantity() + item.getQuantity());
+            stock.setReservedQuantity(stock.getReservedQuantity() - item.getQuantity());
+            stockItemRepository.save(stock);
+
+            log.info("Restored {} units of {} to available stock", item.getQuantity(), item.getSku());
+        }
+
+        // Step 3: Mark the reservation as RELEASED
+        reservation.setStatus(ReservationStatus.RELEASED);
+        reservationRepository.save(reservation);
+
+        log.info("SAGA COMPENSATION: Released reservation {} for order {} (payment failure code: {})",
+                reservation.getId(), failed.orderId(), failed.failureCode());
     }
 
 

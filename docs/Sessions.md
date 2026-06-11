@@ -59,8 +59,8 @@ Producer + consumer in the same service. Reserve stock or fail. This is where "e
 
 Simulated gateway with a 5% failure rate. Now you have a real failure path to compensate for.
 
-## Till here we  have    not  added the  actual cost  for  the order  and c we are also not added the actual payment gateway intregation we  just  simulatig   
-## future  Enhancements : 
+#### Till here we  have    not  added the  actual cost  for  the order  and c we are also not added the actual payment gateway intregation we  just  simulatig   
+#### Future  Enhancements : 
 Add the  Actual Cost  of the order
 Add Real  Payment Gateway
 
@@ -68,6 +68,10 @@ Add Real  Payment Gateway
 ### Session 9 — Saga Compensation: Distributed Transactions Without 2PC
 
 The crucial session. When payment fails, who releases the inventory? You'll wire up the compensating consumer in `inventory-service`. Diagram the choreography on paper.
+
+
+#### Future Enhancements
+if the payment fails  release the  event so that the  notificationn service could  mail the  user  regarding the  failed  event  andthe reason why the payment failed 
 
 ### Session 10 — Shipping Service
 
