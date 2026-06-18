@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.orderflow</groupId>
+        <artifactId>microservices-parent</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>analytics-service</artifactId>
+    <name>orderflow-analytics-service</name>
+    <description>
+        The analytics service: consumes ALL topics, aggregates real-time metrics,
+        exposes them via /metrics. The fan-out (fan-in) consumer pattern.
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.orderflow</groupId>
+            <artifactId>common</artifactId>
+        </dependency>
+
+        <!--
+          We need web for the /metrics endpoint. Unlike notification-service,
+          analytics actually HAS an HTTP API — the metrics endpoint is the whole point.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
+        <!--
+          No database. Analytics keeps aggregates in memory for this session.
+          In production this would write to Prometheus / InfluxDB / a warehouse.
+        -->
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>analytics-service</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -65,17 +65,26 @@ Add the  Actual Cost  of the order
 Add Real  Payment Gateway
 
 
-### Session 9 — Saga Compensation: Distributed Transactions Without 2PC
+### Session 9 — Saga Compensation: Distributed Transactions Without 2PC ✅
 
 The crucial session. When payment fails, who releases the inventory? You'll wire up the compensating consumer in `inventory-service`. Diagram the choreography on paper.
 
 
 #### Future Enhancements
 if the payment fails  release the  event so that the  notificationn service could  mail the  user  regarding the  failed  event  andthe reason why the payment failed 
+We can also produce event to the inventory.failed event making the order staus to cancelled / or any other 
 
-### Session 10 — Shipping Service
+### Session 10 — Shipping Service ✅
 
 Quick session — by now you know the pattern. Cements it.
+
+done this service listens to the  payment failed  event and  produces event  ot the  shipment.dispatched 
+
+#### Future Enhancements 
+WE can  make a feature called  user cancel the order when  it  is dispatched it should  compensate and then payment  should  be  refunded this  feature  can  be  added 
+We can also calculate the estimated delivery  time according to the address of the  user. 
+
+
 
 ### Session 11 — Analytics Service: Fan-out
 
