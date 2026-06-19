@@ -1,9 +1,14 @@
 package com.orderflow.order;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.orderflow.common.events.EventEnvelope;
+import com.orderflow.common.events.Topics;
 import com.orderflow.common.events.payloads.OrderCreatedPayload;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
-import jakarta.transaction.Transactional;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,10 +35,15 @@ import java.util.UUID;
 @Service
 @Slf4j
 @RequiredArgsConstructor
+@EnableScheduling
 public class OrderService {
 
     private final   OrderRepository orderRepository ;
+    private final OutboxEventRepository outboxRepository;
+
     private final   OrderEventPublisher eventPublisher ;
+    private final ObjectMapper objectMapper;
+
 
     /*
      * Place an order.
@@ -53,7 +63,7 @@ public class OrderService {
     public OrderEntity placeOrder(OrderRequest request ){
         long start  = System.currentTimeMillis();
 
-        // Step 1: persist the  order
+        // STEP 1: persist the order
         OrderEntity order = OrderEntity.builder()
                 .id(UUID.randomUUID())
                 .customerId(request.customerId())
@@ -64,11 +74,7 @@ public class OrderService {
                 .build();
         order = orderRepository.save(order);
 
-        // STEP 2: publish the event
-        //
-        // We build the payload from the persisted entity (after save() so we
-        // have the canonical state). The publisher wraps this in an envelope
-        // and sends it asynchronously.
+        // STEP 2: build the SAME event envelope we used to publish directly...
         OrderCreatedPayload payload = new OrderCreatedPayload(
                 order.getId(),
                 order.getCustomerId(),
@@ -79,7 +85,17 @@ public class OrderService {
                 "USD"
         );
 
-        eventPublisher.publishOrderCreated(payload);
+        EventEnvelope<OrderCreatedPayload> envelope = EventEnvelope.of(
+                "order.created",
+                payload,
+                /* correlationId */ UUID.randomUUID(),  // start of a customer flow
+                /* causationId   */ null
+        );
+
+        // ...and write it to the OUTBOX instead of sending to Kafka.
+        // This INSERT is in the same transaction as the order INSERT above,
+        // so they commit atomically. The OutboxRelay will publish it shortly.
+        outboxRepository.save(toOutbox(order.getId(), envelope));
 
         long elapsed = System.currentTimeMillis() - start;
         log.info("Order {} placed in {}ms (1 DB save + 1 async event)", order.getId(), elapsed);
@@ -90,5 +106,36 @@ public class OrderService {
 
 
 
+    }
+
+    /**
+     * Serialize the envelope and wrap it in an OutboxEvent row.
+     *
+     * The aggregateId (orderId) becomes the Kafka message KEY when the relay
+     * publishes — preserving the per-order partition routing we've relied on
+     * since Session 3.
+     */
+    private OutboxEvent toOutbox(UUID orderId, EventEnvelope<OrderCreatedPayload> envelope) {
+        String json;
+        try {
+            json = objectMapper.writeValueAsString(envelope);
+        } catch (JsonProcessingException e) {
+            // If serialization fails, throw — this rolls back the whole transaction,
+            // including the order save. We will NOT persist an order we can't emit
+            // an event for. Fail loud, fail atomic.
+            throw new IllegalStateException(
+                    "Failed to serialize order.created event for order " + orderId, e);
+        }
+
+        return OutboxEvent.builder()
+                .id(UUID.randomUUID())
+                .aggregateType("Order")
+                .aggregateId(orderId.toString())
+                .eventType("order.created")
+                .topic(Topics.ORDER_CREATED)
+                .payload(json)
+                .createdAt(Instant.now())
+                .publishedAt(null)              // pending — relay will publish
+                .build();
     }
 }

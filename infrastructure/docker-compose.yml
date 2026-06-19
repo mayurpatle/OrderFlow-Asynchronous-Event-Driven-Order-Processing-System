@@ -16,6 +16,8 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     container_name: orderflow-kafka
+    volumes:
+      - kafka-data:/var/lib/kafka/data
     ports:
       - "9092:9092"    # internal communication between containers
       - "29092:29092"  # external — your laptop connects here
@@ -70,5 +72,8 @@ networks:
 
 volumes:
   postgres-data:
+  kafka-data:
+
+
 
 
