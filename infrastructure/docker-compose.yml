@@ -10,6 +10,7 @@ services:
       POSTGRES_DB: monolith
     volumes:
       - postgres-data:/var/lob/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro   # ← ADD THIS post gres  init  script to initalize DB  
     networks:
       - orderflow
 

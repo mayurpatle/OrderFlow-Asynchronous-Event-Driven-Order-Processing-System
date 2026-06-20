@@ -1,3 +1,6 @@
+# Script toreset  all the data  in the  post  gres DB and  in the kafak topics
+
+
 Write-Host "=== Resetting OrderFlow — coordinated full reset ===" -ForegroundColor Cyan
 Write-Host ""
 
