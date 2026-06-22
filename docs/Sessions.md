@@ -86,17 +86,21 @@ We can also calculate the estimated delivery  time according to the address of t
 
 
 
-### Session 11 — Analytics Service: Fan-out
+### Session 11 — Analytics Service: Fan-out ✅
 
 Consuming 7 topics from one service. The "easiest to extract first" service of the strangler-fig migration.
 
+Done  
 ---
 
 ## Phase 4: Production Concerns (Sessions 12–15)
 
-### Session 12 — Idempotency in Depth
+### Session 12 — Idempotency in Depth ✅
 
 Events get redelivered. Why? Walk through the exact scenarios. Build the `processed_events` table and `IdempotencyService`. Test it by killing a consumer mid-process.
+
+- Implementated transactional outbox pattern in order service the outbox table  is in the orders DB. 
+- Future enhancement  will be  to implement  outbox pattern in all other services inventory  payment shipping notification 
 
 ### Session 13 — Avro Schemas & Schema Registry
 

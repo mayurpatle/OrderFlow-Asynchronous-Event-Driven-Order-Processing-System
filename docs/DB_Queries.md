@@ -49,7 +49,7 @@ docker exec -it orderflow-postgres psql -U orderflow -d shipping -c "SELECT id, 
 
 ### Send 20 Orders query  : 
 
-1..20 | ForEach-Object {
+1..1050 | ForEach-Object {
 $body = "{`"customerId`":`"cust-analytics-$_`",`"items`":[{`"sku`":`"SKU-001`",`"quantity`":1,`"unitPriceCents`":2999}]}"
 Invoke-RestMethod -Uri http://localhost:8081/api/orders -Method POST -ContentType "application/json" -Body $body -ErrorAction SilentlyContinue | Out-Null
 Start-Sleep -Milliseconds 150

@@ -11,6 +11,7 @@ import com.orderflow.inventory.Entity.Reservation;
 import com.orderflow.inventory.Entity.ReservationItem;
 import com.orderflow.inventory.Entity.ReservationStatus;
 import com.orderflow.inventory.Entity.StockItem;
+import com.orderflow.inventory.Exception.InsufficientStockException;
 import com.orderflow.inventory.Repositories.ReservationItemRepository;
 import com.orderflow.inventory.Repositories.ReservationRepository;
 import com.orderflow.inventory.Repositories.StockItemRepository;
@@ -91,24 +92,41 @@ public class InventoryConsumer {
 
         // STEP 1: Check availability for ALL items BEFORE reserving any.
         // This is the atomicity guarantee — we don't half-reserve.
-        List<String> unavailableSkus = checkAvailability(order.items());
+        // List<String> unavailableSkus = checkAvailability(order.items());
 
-        if (!unavailableSkus.isEmpty()) {
+        // if (!unavailableSkus.isEmpty()) {
             // The failure path. Publish reservation_failed and exit.
             // Note we did NOT modify the DB — no stock was decremented.
-            publishReservationFailed(order, unavailableSkus, envelope);
-            return;
+            // publishReservationFailed(order, unavailableSkus, envelope);
+            // return;
+        // }
+
+
+        // Reservation reservation = reserveStock(order);
+
+
+
+
+
+        // publishReserved(order, reservation, envelope);
+
+
+        try {
+            // STEP 2: Stock is available for all items. Reserve them.
+            // reserveStock runs in its own transaction (see @Transactional on it).
+            // The atomic tryReserve enforces the stock ceiling; if any item can't
+            // be reserved, it throws InsufficientStockException and the whole
+            // reservation rolls back.
+            Reservation reservation = reserveStockTransactional(order);
+            // if the  data  is  updated  in the  reservation DB and the event fails  to send then  this  will be  handled  by he outbox  pattern
+            // STEP 3: Publish the success event.
+            publishReserved(order, reservation, envelope);
+
+        } catch (InsufficientStockException e) {
+            // Rejection path: one or more SKUs didn't have enough stock.
+            // The reservation transaction rolled back — no stock was decremented.
+            publishReservationFailed(order, List.of(e.getSku()), envelope);
         }
-
-        // STEP 2: Stock is available for all items. Reserve them.
-        Reservation reservation = reserveStock(order);
-
-
-        // if the  data  is  updated  in the  reservation DB and the event fails  to send then  this  will be  handled  by he outbox  pattern
-
-
-        // STEP 3: Publish the success event.
-        publishReserved(order, reservation, envelope);
 
 
 
@@ -122,7 +140,7 @@ public class InventoryConsumer {
      * available — this is a demo-mode convenience. In production this would be a
      * hard error: ordering a non-existent SKU should fail validation upstream.
      */
-    public List<String> checkAvailability(List<OrderCreatedPayload.Item> items){
+    /* public List<String> checkAvailability(List<OrderCreatedPayload.Item> items){
         List<String> unavailable  = new ArrayList<>()  ;
 
         for   ( OrderCreatedPayload.Item item  : items ){
@@ -141,24 +159,44 @@ public class InventoryConsumer {
 
         return unavailable  ;
 
-    }
+    } */
 
     /**
      * Decrement stock, create the Reservation row. All within the @Transactional
      * boundary of the caller — so if anything fails partway, everything rolls back.
      */
-    private Reservation reserveStock(OrderCreatedPayload order) {
-        for (OrderCreatedPayload.Item item : order.items()) {
-            StockItem stock = stockItemRepository.findById(item.sku())
-                    .orElseGet(() -> StockItem.builder()
-                            .sku(item.sku())
-                            .availableQuantity(1000)
-                            .reservedQuantity(0)
-                            .build());
 
-            stock.setAvailableQuantity(stock.getAvailableQuantity() - item.quantity());
-            stock.setReservedQuantity(stock.getReservedQuantity() + item.quantity());
-            stockItemRepository.save(stock);
+    // To handle Concurrency
+
+    /**
+     * Reserve stock for every item using the ATOMIC conditional UPDATE.
+     *
+     * For each item:
+     *   1. Ensure the SKU row exists (idempotent seed)
+     *   2. Run tryReserve — atomic check-and-decrement, returns rows affected
+     *   3. If 0 rows affected, this SKU didn't have enough stock
+     *
+     * If ANY item can't be reserved, we throw to roll back the whole transaction
+     * (including any items we already reserved in this loop) and signal the caller
+     * to take the rejection path. This preserves the all-or-nothing guarantee:
+     * an order either reserves ALL its items or NONE.
+     *
+     * No read-modify-write anywhere. No lost-update window. The database enforces
+     * the stock ceiling atomically.
+     */
+    @Transactional
+    private Reservation reserveStockTransactional(OrderCreatedPayload order) {
+        for (OrderCreatedPayload.Item item : order.items()) {
+            stockItemRepository.seedIfAbsent(item.sku());
+
+            int affected = stockItemRepository.tryReserve(item.sku(), item.quantity());
+            if (affected == 0) {
+                // Atomic check failed: not enough stock for this SKU RIGHT NOW.
+                // Throw to roll back everything reserved so far in this order,
+                // and let onOrderCreated catch it and publish reservation_failed.
+                throw new InsufficientStockException(item.sku());
+            }
+
         }
 
         Reservation reservation = Reservation.builder()
@@ -169,7 +207,7 @@ public class InventoryConsumer {
                 .build();
 
         // Persist one ReservationItem per ordered SKU.
-// These are what onPaymentFailed will read during saga compensation.
+        // These are what onPaymentFailed will read during saga compensation.
         for (OrderCreatedPayload.Item item : order.items()) {
             ReservationItem ri = ReservationItem.builder()
                     .id(UUID.randomUUID())
