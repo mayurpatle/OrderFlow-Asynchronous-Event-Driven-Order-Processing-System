@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -40,33 +41,44 @@ public class StockReservationService {
     private final ReservationItemRepository reservedItemRepo;
 
     /**
-     * Reserve stock for all items in the order, atomically.
+     * Result of a reservation attempt. Either success (with the reservation) or
+     * failure (with the offending SKU). We return this instead of throwing, so the
+     * rejection path never marks the Kafka listener's transaction rollback-only.
+     */
+    public record ReserveResult(boolean success, Reservation reservation, String failedSku) {
+        static ReserveResult ok(Reservation r) { return new ReserveResult(true, r, null); }
+        static ReserveResult fail(String sku)  { return new ReserveResult(false, null, sku); }
+    }
+
+    /**
+     * Reserve stock atomically. Returns a ReserveResult rather than throwing on
+     * insufficient stock.
      *
-     * For each item: seed the SKU if absent, then run the atomic tryReserve.
-     * If tryReserve affects 0 rows, stock was insufficient — throw
-     * InsufficientStockException, which rolls back THIS transaction (undoing any
-     * items already reserved in this loop) and signals the caller to reject.
-     *
-     * All-or-nothing: an order reserves ALL its items or NONE.
-     *
-     * @Transactional here is honored because this is a proxied bean method called
-     * from a DIFFERENT bean (InventoryConsumer). The transaction opens on entry
-     * and commits/rolls back on return — BEFORE the caller's catch block runs.
+     * If a later item fails after earlier items were reserved, we explicitly restore
+     * the earlier ones (manual compensation) so the order is all-or-nothing WITHOUT
+     * relying on a thrown-exception rollback — which would mark the surrounding
+     * Kafka transaction rollback-only and cause redelivery storms.
      */
     @Transactional
-    public Reservation reserve(OrderCreatedPayload order) {
+    public ReserveResult reserve(OrderCreatedPayload order) {
+        List<OrderCreatedPayload.Item> reservedSoFar = new ArrayList<>();
+
         for (OrderCreatedPayload.Item item : order.items()) {
             stockItemRepository.seedIfAbsent(item.sku());
-
             int affected = stockItemRepository.tryReserve(item.sku(), item.quantity());
+
             if (affected == 0) {
-                // Atomic check failed: not enough stock for this SKU right now.
-                // Throwing rolls back everything reserved so far in this txn.
-                throw new InsufficientStockException(item.sku());
+                // Insufficient stock for this SKU. Manually restore anything we
+                // already reserved in THIS order, so it's all-or-nothing — without
+                // throwing across the transaction boundary.
+                for (OrderCreatedPayload.Item done : reservedSoFar) {
+                    stockItemRepository.restoreStock(done.sku(), done.quantity());
+                }
+                return ReserveResult.fail(item.sku());
             }
+            reservedSoFar.add(item);
         }
 
-        // All items reserved atomically. Record the reservation + its line items.
         Reservation reservation = Reservation.builder()
                 .id(UUID.randomUUID())
                 .orderId(order.orderId())
@@ -76,16 +88,15 @@ public class StockReservationService {
         reservationRepository.save(reservation);
 
         for (OrderCreatedPayload.Item item : order.items()) {
-            ReservationItem ri = ReservationItem.builder()
+            reservedItemRepo.save(ReservationItem.builder()
                     .id(UUID.randomUUID())
                     .reservationId(reservation.getId())
                     .sku(item.sku())
                     .quantity(item.quantity())
-                    .build();
-            reservedItemRepo.save(ri);
+                    .build());
         }
 
-        return reservation;
+        return ReserveResult.ok(reservation);
     }
 
     /**

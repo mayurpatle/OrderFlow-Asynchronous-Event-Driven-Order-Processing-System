@@ -93,7 +93,7 @@ public class InventoryConsumer {
         log.info("Processing order.created for orderId={} with {} items",
                 order.orderId(), order.items().size());
 
-
+        // This baisc checking of availability will result in concurrency probelms
         // STEP 1: Check availability for ALL items BEFORE reserving any.
         // This is the atomicity guarantee — we don't half-reserve.
         // List<String> unavailableSkus = checkAvailability(order.items());
@@ -113,9 +113,8 @@ public class InventoryConsumer {
 
 
         // publishReserved(order, reservation, envelope);
-
-
-        try {
+        // Dont use  try catch will result in the  UnexpectedRollbackException
+        /* try {
             // STEP 2: Stock is available for all items. Reserve them.
             // reserveStock runs in its own transaction (see @Transactional on it).
             // The atomic tryReserve enforces the stock ceiling; if any item can't
@@ -130,6 +129,14 @@ public class InventoryConsumer {
             // Rejection path: one or more SKUs didn't have enough stock.
             // The reservation transaction rolled back — no stock was decremented.
             publishReservationFailed(order, List.of(e.getSku()), envelope);
+        } */
+        // Handle the  concurrency problem my making transactional methods in the seperate service and  adding Atomic SQL UPDATE method in stock item repository.
+        StockReservationService.ReserveResult result = stockReservationService.reserve(order);
+
+        if (result.success()) {
+            publishReserved(order, result.reservation(), envelope);
+        } else {
+            publishReservationFailed(order, List.of(result.failedSku()), envelope);
         }
 
 
@@ -170,7 +177,7 @@ public class InventoryConsumer {
      * boundary of the caller — so if anything fails partway, everything rolls back.
      */
 
-    // To handle Concurrency
+
 
     /**
      * Reserve stock for every item using the ATOMIC conditional UPDATE.

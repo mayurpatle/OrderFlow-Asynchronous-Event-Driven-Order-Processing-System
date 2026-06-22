@@ -1,0 +1,3 @@
+### UnexpectedRollbackException
+
+In frameworks like Spring or Jakarta EE, when a runtime error occurs inside a transactional method, the framework automatically tags that transaction as rollback-only . Once this invisible "doom flag" is set, the database is blocked from saving any changes, even if you successfully catch and handle the error later in your code. Trying to save after this happens triggers an UnexpectedRollbackException.
