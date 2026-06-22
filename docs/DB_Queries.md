@@ -58,4 +58,43 @@ Write-Host "Sent 20 orders."
 
 ---------------------------------------------------------
 
+### Powershell 7 command : 
+
+winget install --id Microsoft.PowerShell --source winget
+
+----------------------------------------------------------
+
+### 2000 Concurrent Order request 
+
+$total = 2000
+$throttle = 50
+
+$pool = [runspacefactory]::CreateRunspacePool(1, $throttle)
+$pool.Open()
+$jobs = @()
+
+1..$total | ForEach-Object {
+$ps = [powershell]::Create()
+$ps.RunspacePool = $pool
+[void]$ps.AddScript({
+param($i)
+$body = "{`"customerId`":`"cust-conc-$i`",`"items`":[{`"sku`":`"SKU-001`",`"quantity`":1,`"unitPriceCents`":2999}]}"
+try {
+Invoke-RestMethod -Uri http://localhost:8081/api/orders -Method POST -ContentType "application/json" -Body $body -ErrorAction Stop | Out-Null
+} catch {}
+}).AddArgument($_)
+$jobs += [pscustomobject]@{ PS = $ps; Handle = $ps.BeginInvoke() }
+}
+
+# Wait for all to finish
+foreach ($j in $jobs) { $j.PS.EndInvoke($j.Handle); $j.PS.Dispose() }
+$pool.Close()
+$pool.Dispose()
+Write-Host "Fired $total concurrent orders (50 at a time)."
+
+
+--------------------------------------------------------------
+
+
+
 
