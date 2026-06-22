@@ -102,6 +102,9 @@ Events get redelivered. Why? Walk through the exact scenarios. Build the `proces
 - Implementated transactional outbox pattern in order service the outbox table  is in the orders DB. 
 - Future enhancement  will be  to implement  outbox pattern in all other services inventory  payment shipping notification 
 
+### ession 13 : Concurrency and oversell prevention : 
+
+
 ### Session 13 — Avro Schemas & Schema Registry
 
 Replace JSON with Avro. Register schemas. Try a breaking change, watch Schema Registry reject it. Try a backward-compatible change, watch it succeed.

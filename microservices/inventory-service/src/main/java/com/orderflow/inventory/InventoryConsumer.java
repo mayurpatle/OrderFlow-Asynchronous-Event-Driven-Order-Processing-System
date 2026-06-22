@@ -15,6 +15,7 @@ import com.orderflow.inventory.Exception.InsufficientStockException;
 import com.orderflow.inventory.Repositories.ReservationItemRepository;
 import com.orderflow.inventory.Repositories.ReservationRepository;
 import com.orderflow.inventory.Repositories.StockItemRepository;
+import com.orderflow.inventory.Service.StockReservationService;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +59,9 @@ public class InventoryConsumer {
     private final ReservationItemRepository reservedItemRepo;   // ← NEW
 
     private final ObjectMapper objectMapper  ;
+
+    private final StockReservationService stockReservationService ;
+
     private final KafkaTemplate<String , Object>  kafkaTemplate  ;
 
     // Listener
@@ -117,7 +121,7 @@ public class InventoryConsumer {
             // The atomic tryReserve enforces the stock ceiling; if any item can't
             // be reserved, it throws InsufficientStockException and the whole
             // reservation rolls back.
-            Reservation reservation = reserveStockTransactional(order);
+            Reservation reservation = stockReservationService.reserve(order);
             // if the  data  is  updated  in the  reservation DB and the event fails  to send then  this  will be  handled  by he outbox  pattern
             // STEP 3: Publish the success event.
             publishReserved(order, reservation, envelope);
@@ -184,7 +188,10 @@ public class InventoryConsumer {
      * No read-modify-write anywhere. No lost-update window. The database enforces
      * the stock ceiling atomically.
      */
-    @Transactional
+
+    // Will Result in Spring AOP Self Invocation therefore making it in another service : StockItemReservationService
+
+     /* @Transactional
     private Reservation reserveStockTransactional(OrderCreatedPayload order) {
         for (OrderCreatedPayload.Item item : order.items()) {
             stockItemRepository.seedIfAbsent(item.sku());
@@ -224,7 +231,7 @@ public class InventoryConsumer {
 
 
 
-    }
+    } */
 
     /**
      * Publish the success event.
@@ -323,7 +330,7 @@ public class InventoryConsumer {
     @Transactional
     public void onPaymentFailed(EventEnvelope<Map<String, Object>> envelope) {
         // Convert payload to typed form
-        PaymentFailedPayload failed = objectMapper.convertValue(
+        /* PaymentFailedPayload failed = objectMapper.convertValue(
                 envelope.payload(), PaymentFailedPayload.class);
 
         log.info("Processing payment.failed for orderId={} reason={}",
@@ -400,7 +407,25 @@ public class InventoryConsumer {
         reservationRepository.save(reservation);
 
         log.info("SAGA COMPENSATION: Released reservation {} for order {} (payment failure code: {})",
-                reservation.getId(), failed.orderId(), failed.failureCode());
+                reservation.getId(), failed.orderId(), failed.failureCode()); */
+
+        // moved the  core logic of  decrementing  the Q to seperate service  and  annotated it  with transactional
+
+
+        PaymentFailedPayload failed = objectMapper.convertValue(
+                envelope.payload(), PaymentFailedPayload.class);
+
+        log.info("Processing payment.failed for orderId={} reason={}",
+                failed.orderId(), failed.failureReason());
+
+        boolean released = stockReservationService.release(failed.orderId());
+        if (released) {
+            log.info("SAGA COMPENSATION: released reservation for order {} (failure code: {})",
+                    failed.orderId(), failed.failureCode());
+        } else {
+            log.info("No active reservation to compensate for order {} (already released or missing)",
+                    failed.orderId());
+        }
     }
 
 
