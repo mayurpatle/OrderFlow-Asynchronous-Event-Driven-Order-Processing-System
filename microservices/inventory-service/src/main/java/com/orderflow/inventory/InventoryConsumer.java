@@ -143,7 +143,7 @@ public class InventoryConsumer {
 
 
     }
-    /**
+    /*
      * Check every SKU in the order. Return list of SKUs that don't have enough stock.
      * Empty list = all available.
      *
@@ -172,14 +172,14 @@ public class InventoryConsumer {
 
     } */
 
-    /**
+    /*
      * Decrement stock, create the Reservation row. All within the @Transactional
      * boundary of the caller — so if anything fails partway, everything rolls back.
      */
 
 
 
-    /**
+    /*
      * Reserve stock for every item using the ATOMIC conditional UPDATE.
      *
      * For each item:
@@ -240,7 +240,7 @@ public class InventoryConsumer {
 
     } */
 
-    /**
+    /*
      * Publish the success event.
      *
      * Notice: we pass the original envelope's correlationId and eventId forward.
@@ -307,7 +307,7 @@ public class InventoryConsumer {
 
     // Session  9 : Saga Compensation for failed Payments
 
-    /**
+    /*
      * Compensation handler — releases reserved stock when a payment fails.
      *
      * THIS IS THE SAGA ROLLBACK in action. When payment-service publishes
