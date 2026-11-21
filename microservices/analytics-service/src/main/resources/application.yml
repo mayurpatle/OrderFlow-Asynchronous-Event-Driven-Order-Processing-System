@@ -1,15 +1,15 @@
-# analytics-service runs on port 8086.
+# analytics-service runs on port 9095.
 # Port plan:
 #   8080 - monolith
-#   8081 - order-service
-#   8082 - inventory-service
-#   8083 - payment-service
-#   8084 - shipping-service
-#   8085 - notification-service
-#   8086 - analytics-service  (this one)
+#   9081 - order-service
+#   9082 - inventory-service
+#   9083 - payment-service
+#   9086 - shipping-service
+#   9084 - notification-service
+#   9085 - analytics-service  (this one)
 
 server:
-  port: 8086
+  port: 8076
 
 spring:
   application:

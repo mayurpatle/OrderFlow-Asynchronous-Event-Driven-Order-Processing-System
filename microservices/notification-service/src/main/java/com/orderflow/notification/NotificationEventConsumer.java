@@ -33,7 +33,7 @@ import java.util.UUID;
 @Slf4j
 @RequiredArgsConstructor
 
-public class NotificationEventConsumer {
+public class   NotificationEventConsumer {
 
     /*
      * Listen on the order.created topic, in consumer group "notification-service".

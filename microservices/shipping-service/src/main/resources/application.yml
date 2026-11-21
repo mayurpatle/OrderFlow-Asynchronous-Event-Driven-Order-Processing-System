@@ -1,14 +1,8 @@
-# shipping-service runs on port 8084.
-# Port plan:
-#   8080 - monolith
-#   8081 - order-service
-#   8082 - inventory-service
-#   8083 - payment-service
-#   8084 - shipping-service  (this one)
-#   8085 - notification-service
+# shipping-service runs on port :  9096
 
 server:
-  port: 8084
+  port: 8074
+
 
 spring:
   application:

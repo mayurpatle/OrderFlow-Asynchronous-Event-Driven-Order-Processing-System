@@ -3,7 +3,7 @@
 # Locally we differentiate via ports so we can run monolith + microservices side by side.
 
 server:
-  port: 8081
+  port: 8071
 
 spring:
   application:

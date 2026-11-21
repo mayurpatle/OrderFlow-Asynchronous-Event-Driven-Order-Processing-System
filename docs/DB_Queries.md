@@ -20,7 +20,7 @@ Shipping DB :
 
 docker exec -it orderflow-postgres psql -U orderflow -d shipping -c "SELECT * from shipments;"
 
-Stock Item DB : 
+Stock Items  table  : 
 
 docker exec -it orderflow-postgres psql -U orderflow -d inventory -c "SELECT * from stock_items;"
 
@@ -28,7 +28,7 @@ docker exec -it orderflow-postgres psql -U orderflow -d inventory -c "SELECT * f
 
 ### Pick one order, trace it across all services
 
-$orderId = "709d95c9-11c4-4246-8625-684e63fd4269"
+$orderId = "c176f871-5c39-4e03-b4c8-ced5cf5d1257"
 
 Write-Host "`n=== Order in order-service ===" -ForegroundColor Cyan
 docker exec -it orderflow-postgres psql -U orderflow -d orders -c "SELECT id, customer_id, total_cents, status, created_at FROM orders WHERE id = '$orderId';"

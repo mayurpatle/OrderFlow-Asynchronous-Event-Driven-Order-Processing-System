@@ -1,8 +1,8 @@
-# notification-service runs on port 8085.
+# notification-service runs on port 9094
 # Each service gets a unique port locally so they can coexist.
 
 server:
-  port: 8085
+  port: 8075
 
 spring:
   application:
